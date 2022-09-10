@@ -11,6 +11,10 @@ bar = terylene.Bar(0)
 for i in range(bar.totalvalues):
 	bar + 1
 	time.sleep(0.5)
+
+# for i in bar:
+# 	i(1)
+# 	time.sleep(0.5)
 ```
 
 And a more difficult example
