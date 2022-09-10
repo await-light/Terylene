@@ -10,9 +10,19 @@ def curs_show():
 	curses.curs_set(1)
 
 class Bar:
-	def __init__(self,y,weight=20,values=100,formats="[[#]] $rate1$%"):
+	'''
+	Progress Bar:
+	:y: the line shows the progress bar
+	:weight: length of the progress bar
+	:totalvalues: total values
+	:formats: how to show the progress:[FilledCharacter],$ReplaceValue$
+		for example: 
+		[[#]] $totalvalues$tasks
+		[#########     ] 60tasks
+	'''
+	def __init__(self,y,weight=20,totalvalues=100,formats="[[#]] $rate1$%"):
 		self._weight = weight # length of the filled part
-		self._totalvalues = values # values of the progress bar
+		self._totalvalues = totalvalues # totalvalues of the progress bar
 		self._values = 0
 		self._y = y # which line to show
 		self._formats = formats
@@ -32,7 +42,7 @@ class Bar:
 		if self._values > self._totalvalues:
 			self._values = self._totalvalues
 
-		index = round(self._weight * (self._values / self._totalvalues))
+		index = round(self._weight*(self._values/self._totalvalues))
 
 		# Content need to be replaced
 		subcontent = {
@@ -49,8 +59,9 @@ class Bar:
 			startwith = re.sub(rf"\${suba}\$",str(subb),startwith)
 			endwith = re.sub(rf"\${suba}\$",str(subb),endwith)
 
-		# If length is over one,only the first character is useful
+		# If length is over one,only the first character is used
 		try:
+			# When the progress bar is not filled.
 			if index <= self._weight+1: 
 				# Clear the whole line.
 				self.win.move(self._y,0)
