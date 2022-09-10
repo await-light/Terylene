@@ -1,7 +1,7 @@
 # Terylene
 The thing that make your terminal beautiful
 
-# Example
+## Example
 A simple example
 ```python
 import time,terylene
@@ -34,5 +34,5 @@ for i in range(10):
 	Thread(target=task,args=(i,)).start()
 ```
 
-# Afterwards
+## Afterwards
 Enjoy it :smile:
