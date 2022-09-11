@@ -1,106 +1,92 @@
-import re
-import curses
+import time
+import random
+import json
+from threading import Thread
+from websocket import create_connection
+from asciimatics.scene import Scene
+from asciimatics.widgets import Frame,Layout,Button
+from asciimatics.widgets import TextBox,Widget
+from asciimatics.widgets.divider import Divider
+from asciimatics.event import KeyboardEvent
+from asciimatics.screen import ManagedScreen,Screen
+from asciimatics.renderers.charts import BarChart
+from asciimatics.renderers.plasma import Plasma
+from asciimatics.renderers.images import ImageFile
+from asciimatics.particles import StarFirework,Splash
 
-curses.initscr()
 
-def curs_hide():
-	curses.curs_set(0)
+def colorful_text(screen, text, x, y):
+	for index,char in enumerate(text):
+		screen.paint(text=char, x=x+index, y=y, colour=random.randint(0, 256))
 
-def curs_show():
-	curses.curs_set(1)
+class V(Frame):
+	def __init__(self,screen):
+		Frame.__init__(self,
+			screen=screen,
+			height=screen.height * 2 // 3,
+			width=screen.width * 2 // 3)
 
-class Bar:
-	'''
-	Progress Bar:
-	:y: the line shows the progress bar
-	:weight: length of the progress bar
-	:totalvalues: total values
-	:formats: how to show the progress:[FilledCharacter],$ReplaceValue$
-		for example: 
-		[[#]] $totalvalues$tasks
-		[#########     ] 60tasks
-	'''
-	def __init__(self,y,weight=20,totalvalues=100,formats="[[#]] $rate1$%"):
-		self._weight = weight # length of the filled part
-		self._totalvalues = totalvalues # totalvalues of the progress bar
-		self._values = 0
-		self._y = y # which line to show
-		self._formats = formats
+		self.s = screen
 
-		se = re.findall(r"^(.+)\[(.)\](.+)$",formats)
-		if se:
-			self._startwith,self._filled,self._endwith = se[0]
-		else:
-			formats = "$rate1$% [[#]]"
-			self._startwith,self._filled,self._endwith = re.findall(
-				r"^(.+)\[(.)\](.+)$",formats)[0]
+		self.ws = create_connection("wss://hack.chat/chat-ws")
+		self.join()
 
-		self.win = curses.initscr()
+		self.set_theme("bright")
 
-	def __add__(self,other):
-		self._values += other
-		if self._values > self._totalvalues:
-			self._values = self._totalvalues
+		layout = Layout([5,1])
+		self.add_layout(layout)
+		self.sendmessage = TextBox(1,name="text", as_string=True,
+			line_wrap=True)
+		layout.add_widget(self.sendmessage,0)
+		layout.add_widget(Button("Send",self.send),1)
 
-		index = round(self._weight*(self._values/self._totalvalues))
+		layout1 = Layout([1])
+		self.add_layout(layout1)
+		layout.add_widget(Divider(),0)
+		self.showmessage = TextBox(Widget.FILL_FRAME,name="message", 
+			as_string=True,line_wrap=True,readonly=True)
+		self.showmessage.hide_cursor = True
+		self.showmessage.disabled = True
+		layout1.add_widget(self.showmessage)
 
-		# Content need to be replaced
-		subcontent = {
-			"rate":round((self._values/self._totalvalues)*100,1),
-			"rate1":round((self._values/self._totalvalues)*100),
-			"values":self._values,
-			"totalvalues":self._totalvalues
-		}
+		self.layout = layout
 
-		# Startwith,endwith and replace
-		startwith = self._startwith
-		endwith = self._endwith
-		for suba,subb in subcontent.items():
-			startwith = re.sub(rf"\${suba}\$",str(subb),startwith)
-			endwith = re.sub(rf"\${suba}\$",str(subb),endwith)
+		self.fix()
 
-		# If length is over one,only the first character is used
-		try:
-			# When the progress bar is not filled.
-			if index <= self._weight+1: 
-				# Clear the whole line.
-				self.win.move(self._y,0)
-				self.win.clrtoeol()
-				
-				# Add the progress bar.
-				self.win.addstr(self._y,0,startwith)
-				self.win.addstr(self._y,len(startwith),self._filled*index)
-				self.win.addstr(self._y,self._weight+len(startwith),endwith)
+		listenfunc = Thread(target=self.listen).start()
 
-				# Flash.
-				self.win.refresh()
+	def listen(self):
+		while True:
+			r = json.loads(self.ws.recv())
+			if r["cmd"] == "chat":
+				self.showmessage.value += \
+					f"{r['nick']}:{r['text']}\n"
+			elif r["cmd"] == "warn":
+				self.showmessage.value += \
+					f"! {r['text']}\n"
 			else:
-				# Raise if overflowed.
-				raise IndexError("overflow")
+				continue
+			self.s.refresh()
 
-		except curses.error:
-			return None
+	def join(self):
+		self.ws.send(json.dumps({
+			"cmd":"join",
+			"nick":"Light",
+			"channel":"your-channel"
+			}))
 
-		except IndexError:
-			return None
+	def send(self):
+		self.ws.send(json.dumps({
+			"cmd":"chat",
+			"text":self.sendmessage.value
+			}))
+		self.sendmessage.value = ""
+		
 
-	@property
-	def weight(self):
-		return self._weight
+def demo(screen):
+	scenes = [
+    	Scene([V(screen)], -1, name="Main"),
+		]
+	screen.play(scenes)
 
-	@property
-	def y(self):
-		return self._y
-	
-	@property
-	def totalvalues(self):
-		return self._totalvalues
-	
-	@property
-	def values(self):
-		return self._values
-	
-	@property
-	def formats(self):
-		return self._formats
-	
+Screen.wrapper(demo)
